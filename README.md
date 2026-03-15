@@ -1,4 +1,8 @@
-# Real-ESRGAN 超分工具（中文 GUI，可打包 EXE）
+# Real-ESRGAN 超分工具（仅 GUI 封装）
+
+> 重要声明  
+> 本仓库源码基于上游 [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)。  
+> 本项目仅提供 **GUI 封装与使用流程**，不提供 Real-ESRGAN 核心算法原创实现。
 
 这是一个基于 `Real-ESRGAN` 源码封装的中文桌面 GUI 项目，目标是：
 
@@ -12,10 +16,11 @@
 - 仓库地址：https://github.com/xinntao/Real-ESRGAN
 - 本项目引用版本：`Real-ESRGAN-0.3.0`（位于 `third_party/Real-ESRGAN-0.3.0/`）
 
-## 与上游关系说明
+## 与上游关系说明（本仓库定位）
 
-- 本仓库不是上游官方仓库，而是基于上游源码做的中文 GUI 封装与工程化发布。
-- 核心超分模型与推理能力来自上游项目。
+- 本仓库不是上游官方仓库。
+- 本仓库是 Real-ESRGAN 的 GUI 壳项目（只做界面与工程化能力）。
+- 核心超分模型、网络结构、推理逻辑均来自上游项目。
 - 本仓库主要新增：桌面 GUI、参数可视化、模型自动识别与选择、独立模型下载、Windows EXE 打包脚本。
 
 ## 功能亮点

@@ -1,6 +1,8 @@
 # Third-Party Notices
 
 This project includes third-party source code and assets.
+This repository should be treated as a GUI wrapper project around upstream Real-ESRGAN.
+This repository is a derivative wrapper project and does not claim originality of Real-ESRGAN core algorithms.
 
 ## 1) Real-ESRGAN
 
@@ -25,4 +27,3 @@ This project includes third-party source code and assets.
 ## 2) License Reminder
 
 Please review and comply with each third-party license before redistribution or commercial use.
-
