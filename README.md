@@ -1,32 +1,22 @@
-# Real-ESRGAN 超分工具（中文 GUI）
+# Real-ESRGAN 中文图形工具（GUI）
 
-> 本仓库是 **GUI 封装项目**。  
-> Real-ESRGAN 的核心算法、模型结构和原始推理能力来自上游仓库 [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)。
+先说明白：这个仓库是 **GUI 工具**，不是超分算法原仓库。  
+核心算法来自上游项目 [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)。
 
-一个面向 Windows 用户的 Real-ESRGAN 图形化工具，目标是“拿来就能用”：  
-- 中文界面  
-- 图片/视频超分  
-- 本地模型自动识别与直接选择  
-- 一键打包 EXE
+## 这个项目是干什么的
 
-## 项目定位
+把 Real-ESRGAN 做成中文图形界面，方便直接点选使用，不用手敲命令。
 
-- 你正在看的仓库：GUI、参数交互、模型管理、打包脚本
-- 上游仓库：超分算法、模型架构、底层推理实现
-- 适合人群：不想频繁敲命令、需要可视化操作和快速分发的人
+你可以用它做这些事：
 
-## 主要功能
+- 图片超分（单张或整文件夹）
+- 视频超分（可尝试保留原音轨）
+- 自动识别本地模型文件，并直接选择
+- 一键打包 Windows `exe`
 
-- 图片超分：单图或文件夹批处理
-- 视频超分：支持帧率设置，尝试保留原音轨
-- 模型管理：自动扫描本地 `.pth`，可直接下拉选择
-- 参数可视化：放大倍率、降噪、Tile、FP32、GPU ID 等
-- 任务控制：进度条、实时日志、停止任务
-- 配置记忆：自动保存上次设置
+## 怎么用（最短流程）
 
-## 快速开始
-
-### 1) 安装环境
+### 1. 安装环境
 
 CPU 版：
 
@@ -40,35 +30,44 @@ NVIDIA（CUDA 12.1）：
 .\scripts\setup_env.ps1 -Torch cu121
 ```
 
-### 2) 启动 GUI
+### 2. 打开程序
 
 ```powershell
 .\scripts\run_dev.ps1
 ```
 
-### 3) 常规使用流程
+### 3. 开始处理
 
-1. 选择 `图片超分` 或 `视频超分`
-2. 选择输入和输出路径
-3. 选择模型（可用本地模型下拉框直接选）
-4. 点击 `开始超分`
-5. 在右侧查看进度与日志
+1. 选 `图片超分` 或 `视频超分`
+2. 选输入路径和输出目录
+3. 选模型（可用“本地模型”下拉框直接选）
+4. 点 `开始超分`
+5. 右侧看进度和日志
 
-## EXE 打包与模型分离
+## 打包 EXE
 
-默认打包不带权重（体积更小）：
+默认打包（不带模型，体积更小）：
 
 ```powershell
 .\scripts\build_exe.ps1
 ```
 
-输出：
+生成文件：
 
 ```text
 dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 ```
 
-首次使用可在 GUI 内下载模型，或提前下载：
+如果你要把本地模型一起打包：
+
+```powershell
+.\scripts\build_exe.ps1 -IncludeLocalWeights
+```
+
+## 模型下载
+
+GUI 里可直接点“下载模型”。  
+也可以用脚本：
 
 ```powershell
 .\scripts\download_models.ps1
@@ -80,13 +79,26 @@ dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 .\scripts\download_models.ps1 -All
 ```
 
-如果你确实要把本地权重一起打包：
+## 常见问题
 
-```powershell
-.\scripts\build_exe.ps1 -IncludeLocalWeights
-```
+### 1) 提示找不到模型
 
-## 仓库结构
+- 点“识别”重新扫描
+- 点“下载模型”自动下载
+- 或把 `.pth` 放到 `weights/` 目录
+
+### 2) 显存不够
+
+- 调整 `Tile`
+- 关闭人脸修复
+- 换更轻量模型
+
+### 3) 视频没声音
+
+- 检查 `ffmpeg` 路径是否正确
+- 未配置时会输出无音频视频
+
+## 目录结构
 
 ```text
 .
@@ -99,34 +111,13 @@ dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 │  └─ download_models.ps1
 ├─ src/
 │  └─ realesrgan_gui/
-│     ├─ app.py
-│     └─ engine.py
 └─ third_party/
    └─ Real-ESRGAN-0.3.0/
 ```
 
-## 常见问题
-
-### Q1: 程序提示找不到模型怎么办？
-
-- 先点“识别”扫描模型目录
-- 或点“下载模型”自动下载
-- 或手动将 `.pth` 放到 `weights/` 目录
-
-### Q2: 显存不足怎么办？
-
-- 减小 `Tile`（或尝试不同 Tile 值）
-- 关闭人脸修复
-- 选择更轻量模型
-
-### Q3: 视频没有音频怎么办？
-
-- 检查是否安装并配置 `ffmpeg`
-- 未配置时会退化为输出无音频视频
-
-## 上游与许可证
+## 致谢和许可证
 
 - 上游项目：`xinntao/Real-ESRGAN`  
   https://github.com/xinntao/Real-ESRGAN
 - 上游许可证：[`third_party/Real-ESRGAN-0.3.0/LICENSE`](third_party/Real-ESRGAN-0.3.0/LICENSE)
-- 第三方声明：[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+- 第三方说明：[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
