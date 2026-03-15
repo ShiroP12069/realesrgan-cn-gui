@@ -1,104 +1,77 @@
-# Real-ESRGAN 超分工具（仅 GUI 封装）
+# Real-ESRGAN 超分工具（中文 GUI）
 
-> 重要声明  
-> 本仓库源码基于上游 [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)。  
-> 本项目仅提供 **GUI 封装与使用流程**，不提供 Real-ESRGAN 核心算法原创实现。
+> 本仓库是 **GUI 封装项目**。  
+> Real-ESRGAN 的核心算法、模型结构和原始推理能力来自上游仓库 [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)。
 
-这是一个基于 `Real-ESRGAN` 源码封装的中文桌面 GUI 项目，目标是：
+一个面向 Windows 用户的 Real-ESRGAN 图形化工具，目标是“拿来就能用”：  
+- 中文界面  
+- 图片/视频超分  
+- 本地模型自动识别与直接选择  
+- 一键打包 EXE
 
-- 功能完整：支持图片超分、视频超分、模型下载、日志、进度、任务停止
-- 使用方便：可拖拽输入、参数可视化、配置自动记忆
-- 易于发布：内置 `PyInstaller` 打包脚本，可直接生成 `exe`
+## 项目定位
 
-## 参考仓库（上游）
+- 你正在看的仓库：GUI、参数交互、模型管理、打包脚本
+- 上游仓库：超分算法、模型架构、底层推理实现
+- 适合人群：不想频繁敲命令、需要可视化操作和快速分发的人
 
-- 上游项目：`xinntao/Real-ESRGAN`
-- 仓库地址：https://github.com/xinntao/Real-ESRGAN
-- 本项目引用版本：`Real-ESRGAN-0.3.0`（位于 `third_party/Real-ESRGAN-0.3.0/`）
+## 主要功能
 
-## 与上游关系说明（本仓库定位）
+- 图片超分：单图或文件夹批处理
+- 视频超分：支持帧率设置，尝试保留原音轨
+- 模型管理：自动扫描本地 `.pth`，可直接下拉选择
+- 参数可视化：放大倍率、降噪、Tile、FP32、GPU ID 等
+- 任务控制：进度条、实时日志、停止任务
+- 配置记忆：自动保存上次设置
 
-- 本仓库不是上游官方仓库。
-- 本仓库是 Real-ESRGAN 的 GUI 壳项目（只做界面与工程化能力）。
-- 核心超分模型、网络结构、推理逻辑均来自上游项目。
-- 本仓库主要新增：桌面 GUI、参数可视化、模型自动识别与选择、独立模型下载、Windows EXE 打包脚本。
+## 快速开始
 
-## 功能亮点
+### 1) 安装环境
 
-- 中文界面，参数命名与 Real-ESRGAN 官方参数一致
-- 支持图片文件/文件夹批量超分
-- 支持视频超分（可尝试自动合并原音轨）
-- 模型权重自动下载，支持手动指定 `.pth`
-- 支持 GPU ID、Tile、Denoise、FP32、人脸增强等选项
-- 支持一键恢复默认参数
-
-## 项目结构
-
-```text
-.
-├─ main.py
-├─ requirements.txt
-├─ scripts/
-│  ├─ setup_env.ps1
-│  ├─ run_dev.ps1
-│  └─ build_exe.ps1
-├─ src/
-│  └─ realesrgan_gui/
-│     ├─ app.py
-│     └─ engine.py
-└─ third_party/
-   └─ Real-ESRGAN-0.3.0/
-```
-
-## 1. 环境安装
-
-在 PowerShell 中执行（CPU 版）：
+CPU 版：
 
 ```powershell
 .\scripts\setup_env.ps1 -Torch cpu
 ```
 
-如果你使用 NVIDIA 并希望安装 CUDA 12.1 版：
+NVIDIA（CUDA 12.1）：
 
 ```powershell
 .\scripts\setup_env.ps1 -Torch cu121
 ```
 
-## 2. 开发运行
+### 2) 启动 GUI
 
 ```powershell
 .\scripts\run_dev.ps1
 ```
 
-## 3. 打包 EXE（与模型分离）
+### 3) 常规使用流程
+
+1. 选择 `图片超分` 或 `视频超分`
+2. 选择输入和输出路径
+3. 选择模型（可用本地模型下拉框直接选）
+4. 点击 `开始超分`
+5. 在右侧查看进度与日志
+
+## EXE 打包与模型分离
+
+默认打包不带权重（体积更小）：
 
 ```powershell
 .\scripts\build_exe.ps1
 ```
 
-生成位置：
+输出：
 
 ```text
 dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 ```
 
-说明：
-
-- 默认打包不包含模型权重，包更小
-- 首次运行时可在 GUI 里点击“下载模型”，或运行脚本提前下载
-
-## 4. 独立下载模型（可选）
-
-下载默认模型：
+首次使用可在 GUI 内下载模型，或提前下载：
 
 ```powershell
 .\scripts\download_models.ps1
-```
-
-下载指定模型：
-
-```powershell
-.\scripts\download_models.ps1 -Models RealESRGAN_x4plus,realesr-animevideov3
 ```
 
 下载全部模型：
@@ -107,29 +80,53 @@ dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 .\scripts\download_models.ps1 -All
 ```
 
-## 5. 如果你确实想把本地模型一起打包
+如果你确实要把本地权重一起打包：
 
 ```powershell
 .\scripts\build_exe.ps1 -IncludeLocalWeights
 ```
 
-## 使用说明
+## 仓库结构
 
-1. 选择“图片超分”或“视频超分”
-2. 设置输入路径和输出目录
-3. 选择模型与参数（首次可先点“下载模型”）
-4. 点击“开始超分”
-5. 在右侧查看日志和进度
+```text
+.
+├─ main.py
+├─ requirements.txt
+├─ scripts/
+│  ├─ setup_env.ps1
+│  ├─ run_dev.ps1
+│  ├─ build_exe.ps1
+│  └─ download_models.ps1
+├─ src/
+│  └─ realesrgan_gui/
+│     ├─ app.py
+│     └─ engine.py
+└─ third_party/
+   └─ Real-ESRGAN-0.3.0/
+```
 
-## 注意事项
+## 常见问题
 
-- 首次运行会下载模型权重，需要联网
-- 视频音轨合并依赖 `ffmpeg`，如果未安装也可输出无音频视频
-- 显存不足时，请减小 `Tile` 或关闭 `人脸增强`
-- 使用 anime 模型时不建议启用人脸增强
+### Q1: 程序提示找不到模型怎么办？
 
-## 许可证
+- 先点“识别”扫描模型目录
+- 或点“下载模型”自动下载
+- 或手动将 `.pth` 放到 `weights/` 目录
 
-- GUI 封装代码：遵循本仓库许可证（可按需补充）
-- Real-ESRGAN 源码：见 [`third_party/Real-ESRGAN-0.3.0/LICENSE`](third_party/Real-ESRGAN-0.3.0/LICENSE)
-- 第三方说明：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+### Q2: 显存不足怎么办？
+
+- 减小 `Tile`（或尝试不同 Tile 值）
+- 关闭人脸修复
+- 选择更轻量模型
+
+### Q3: 视频没有音频怎么办？
+
+- 检查是否安装并配置 `ffmpeg`
+- 未配置时会退化为输出无音频视频
+
+## 上游与许可证
+
+- 上游项目：`xinntao/Real-ESRGAN`  
+  https://github.com/xinntao/Real-ESRGAN
+- 上游许可证：[`third_party/Real-ESRGAN-0.3.0/LICENSE`](third_party/Real-ESRGAN-0.3.0/LICENSE)
+- 第三方声明：[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
