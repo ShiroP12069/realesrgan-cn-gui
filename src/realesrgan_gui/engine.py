@@ -76,9 +76,9 @@ class RealESRGANEngine:
         upsampler, face_enhancer = self._build_upsampler(config, log_cb)
         if config.mode == "video":
             count = self._run_video(config, upsampler, face_enhancer, log_cb, progress_cb)
-            return f"任务完成：视频已处理，共 {count} 帧。"
+            return f"任务完成：视频超分已处理，共 {count} 帧。"
         count = self._run_images(config, upsampler, face_enhancer, log_cb, progress_cb)
-        return f"任务完成：图片处理 {count} 张。"
+        return f"任务完成：图片超分 {count} 张。"
 
     def download_model(self, model_name: str, custom_model_path: str, log_cb: Callable[[str], None]) -> str:
         cfg = InferenceConfig(model_name=model_name, model_path=custom_model_path)
@@ -171,7 +171,12 @@ class RealESRGANEngine:
         _, _, urls = self._model_info(config.model_name)
         if config.model_path.strip():
             path = Path(config.model_path.strip())
-            if not path.exists():
+            if path.is_dir():
+                candidate = path / f"{config.model_name}.pth"
+                if not candidate.is_file():
+                    raise FileNotFoundError(f"模型目录中未找到：{candidate.name}")
+                path = candidate
+            if not path.is_file():
                 raise FileNotFoundError(f"模型文件不存在：{path}")
             model_path: str | list[str] = str(path)
         else:
@@ -216,7 +221,7 @@ class RealESRGANEngine:
             try:
                 from gfpgan import GFPGANer  # type: ignore
             except Exception as exc:
-                raise RuntimeError("人脸增强依赖加载失败，请确认已安装 gfpgan。") from exc
+                raise RuntimeError("人脸修复依赖加载失败，请确认已安装 gfpgan。") from exc
             face_enhancer = GFPGANer(
                 model_path="https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth",
                 upscale=config.outscale,

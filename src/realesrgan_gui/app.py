@@ -7,8 +7,8 @@ from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QSettings, QThread, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QFont, QIcon
+from PySide6.QtCore import QObject, QSettings, Qt, QThread, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFont, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QProgressBar,
     QScrollArea,
+    QSplitter,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
@@ -133,7 +134,7 @@ class MainWindow(QMainWindow):
         "ffmpeg_bin",
     ]
 
-    MODE_LABELS = {"图片增强": "image", "视频增强": "video"}
+    MODE_LABELS = {"图片超分": "image", "视频超分": "video"}
     MODE_VALUES = {v: k for k, v in MODE_LABELS.items()}
 
     MODELS = [
@@ -147,63 +148,67 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Real-ESRGAN 中文增强工具")
+        self.setWindowTitle("Real-ESRGAN超分工具")
         self.resize(1180, 760)
         self.setMinimumSize(1024, 680)
         self.settings = QSettings("Codex", "RealESRGAN-CN-GUI")
+        self.detected_model_paths: dict[str, str] = {}
         self.worker_thread: QThread | None = None
         self.worker: InferenceWorker | None = None
         self.download_thread: QThread | None = None
         self.download_worker: ModelDownloadWorker | None = None
         self._build_ui()
+        self._init_tooltips()
         self._apply_stylesheet()
         self._load_settings()
+        self._auto_detect_models()
         self._update_mode_ui()
 
     def _build_ui(self) -> None:
         central = QWidget()
         root = QVBoxLayout(central)
-        root.setContentsMargins(18, 18, 18, 18)
-        root.setSpacing(14)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.setSpacing(12)
 
         header = QFrame()
         header.setObjectName("headerCard")
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(22, 18, 22, 18)
-        title = QLabel("Real-ESRGAN 中文增强工具")
+        header_layout.setContentsMargins(20, 14, 20, 14)
+        title = QLabel("Real-ESRGAN超分工具")
         title.setObjectName("titleLabel")
-        subtitle = QLabel("支持图片与视频超分辨率增强，模型自动下载，参数可视化，适合直接打包为 EXE 发布。")
-        subtitle.setObjectName("subTitleLabel")
-        subtitle.setWordWrap(True)
+        title.setWordWrap(True)
         header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
         root.addWidget(header)
-
-        body = QHBoxLayout()
-        body.setSpacing(14)
-        root.addLayout(body, 1)
 
         left_panel = self._build_left_panel()
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
         left_scroll.setFrameShape(QFrame.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         left_scroll.setWidget(left_panel)
         right_panel = self._build_right_panel()
-        body.addWidget(left_scroll, 6)
-        body.addWidget(right_panel, 7)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(8)
+        splitter.addWidget(left_scroll)
+        splitter.addWidget(right_panel)
+        splitter.setStretchFactor(0, 5)
+        splitter.setStretchFactor(1, 6)
+        splitter.setSizes([620, 760])
+        root.addWidget(splitter, 1)
 
         self.setCentralWidget(central)
-        self._build_menubar()
 
     def _build_left_panel(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("card")
-        panel.setMinimumWidth(460)
+        panel.setMinimumWidth(520)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        basic_group = QGroupBox("输入与输出")
+        basic_group = QGroupBox("任务设置")
         basic_form = QFormLayout(basic_group)
         self._configure_form_layout(basic_form)
 
@@ -219,6 +224,7 @@ class MainWindow(QMainWindow):
         self.input_edit = DropPathEdit("可拖拽文件或文件夹到这里")
         btn_input = QPushButton("浏览")
         btn_input.clicked.connect(self._browse_input)
+        btn_input.setToolTip("选择输入文件或目录。")
         input_layout.addWidget(self.input_edit, 1)
         input_layout.addWidget(btn_input)
         basic_form.addRow("输入路径", input_row)
@@ -232,12 +238,14 @@ class MainWindow(QMainWindow):
         btn_output.clicked.connect(self._browse_output)
         btn_open = QPushButton("打开")
         btn_open.clicked.connect(self._open_output_dir)
+        btn_output.setToolTip("选择输出目录。")
+        btn_open.setToolTip("打开输出目录。")
         output_layout.addWidget(self.output_edit, 1)
         output_layout.addWidget(btn_output)
         output_layout.addWidget(btn_open)
         basic_form.addRow("输出目录", output_row)
 
-        model_group = QGroupBox("模型与核心参数")
+        model_group = QGroupBox("模型参数")
         model_form = QFormLayout(model_group)
         self._configure_form_layout(model_form)
 
@@ -252,16 +260,38 @@ class MainWindow(QMainWindow):
         model_path_layout.setContentsMargins(0, 0, 0, 0)
         model_path_layout.setSpacing(8)
         self.model_path_edit = QLineEdit()
-        self.model_path_edit.setPlaceholderText("可选：手动指定 .pth 模型路径")
+        self.model_path_edit.setPlaceholderText("可选：指定模型文件或模型目录")
+        self.model_path_edit.editingFinished.connect(self._auto_detect_models)
         btn_model_path = QPushButton("浏览")
         btn_model_path.clicked.connect(self._browse_model_file)
+        btn_model_dir = QPushButton("目录")
+        btn_model_dir.clicked.connect(self._browse_model_dir)
+        btn_model_path.setToolTip("选择单个模型文件。")
+        btn_model_dir.setToolTip("选择模型所在目录。")
+
+        model_path_layout.addWidget(self.model_path_edit, 1)
+        model_path_layout.addWidget(btn_model_path)
+        model_path_layout.addWidget(btn_model_dir)
+        model_form.addRow("模型文件", model_path_row)
+
+        model_action_row = QWidget()
+        model_action_layout = QHBoxLayout(model_action_row)
+        model_action_layout.setContentsMargins(0, 0, 0, 0)
+        model_action_layout.setSpacing(8)
+        btn_detect_model = QPushButton("识别")
+        btn_detect_model.clicked.connect(self._auto_detect_models)
+        self.detect_btn = btn_detect_model
         btn_download_model = QPushButton("下载模型")
         btn_download_model.clicked.connect(self._download_model)
         self.download_btn = btn_download_model
-        model_path_layout.addWidget(self.model_path_edit, 1)
-        model_path_layout.addWidget(btn_model_path)
-        model_path_layout.addWidget(btn_download_model)
-        model_form.addRow("模型文件", model_path_row)
+        model_action_layout.addWidget(btn_detect_model)
+        model_action_layout.addWidget(btn_download_model)
+        model_action_layout.addStretch(1)
+        model_form.addRow("模型操作", model_action_row)
+
+        self.detected_model_combo = QComboBox()
+        self.detected_model_combo.currentIndexChanged.connect(self._on_detected_model_selected)
+        model_form.addRow("本地模型", self.detected_model_combo)
 
         self.outscale_spin = QDoubleSpinBox()
         self.outscale_spin.setRange(1.0, 8.0)
@@ -280,12 +310,12 @@ class MainWindow(QMainWindow):
         self.gpu_combo.addItems(["自动", "0", "1", "2", "3"])
         model_form.addRow("GPU ID", self.gpu_combo)
 
-        self.face_checkbox = QCheckBox("启用人脸增强（GFPGAN）")
+        self.face_checkbox = QCheckBox("启用人脸修复（GFPGAN）")
         self.fp32_checkbox = QCheckBox("使用 FP32 精度（显存占用更高）")
         model_form.addRow("", self.face_checkbox)
         model_form.addRow("", self.fp32_checkbox)
 
-        advanced_group = QGroupBox("高级参数")
+        advanced_group = QGroupBox("高级设置")
         advanced_form = QFormLayout(advanced_group)
         self._configure_form_layout(advanced_form)
 
@@ -315,7 +345,7 @@ class MainWindow(QMainWindow):
         self.pre_pad_spin.setValue(0)
         advanced_form.addRow("Pre Pad", self.pre_pad_spin)
 
-        video_group = QGroupBox("视频参数")
+        video_group = QGroupBox("视频设置")
         video_form = QFormLayout(video_group)
         self._configure_form_layout(video_form)
 
@@ -334,6 +364,7 @@ class MainWindow(QMainWindow):
         self.ffmpeg_edit = QLineEdit("ffmpeg")
         btn_ffmpeg = QPushButton("浏览")
         btn_ffmpeg.clicked.connect(self._browse_ffmpeg)
+        btn_ffmpeg.setToolTip("选择 ffmpeg 可执行文件。")
         ffmpeg_layout.addWidget(self.ffmpeg_edit, 1)
         ffmpeg_layout.addWidget(btn_ffmpeg)
         video_form.addRow("ffmpeg", ffmpeg_row)
@@ -343,10 +374,13 @@ class MainWindow(QMainWindow):
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setHorizontalSpacing(8)
         action_layout.setVerticalSpacing(8)
-        self.start_btn = QPushButton("开始增强")
+        self.start_btn = QPushButton("开始超分")
+        self.start_btn.setObjectName("primaryBtn")
         self.stop_btn = QPushButton("停止任务")
+        self.stop_btn.setObjectName("secondaryBtn")
         self.stop_btn.setEnabled(False)
         self.reset_btn = QPushButton("恢复默认")
+        self.reset_btn.setObjectName("secondaryBtn")
         self.start_btn.clicked.connect(self._start_task)
         self.stop_btn.clicked.connect(self._stop_task)
         self.reset_btn.clicked.connect(self._reset_defaults)
@@ -373,6 +407,7 @@ class MainWindow(QMainWindow):
     def _build_right_panel(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("card")
+        panel.setMinimumWidth(460)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -389,50 +424,71 @@ class MainWindow(QMainWindow):
         self.log_edit.setReadOnly(True)
         self.log_edit.setPlaceholderText("运行日志会显示在这里...")
 
-        tip = QLabel("提示：可先点击“下载模型”预下载权重，首次增强会更快。")
-        tip.setObjectName("tipLabel")
-        tip.setWordWrap(True)
+        log_label = QLabel("日志")
+        log_label.setObjectName("tipLabel")
 
         layout.addWidget(self.status_label)
         layout.addWidget(self.progress_bar)
+        layout.addWidget(log_label)
         layout.addWidget(self.log_edit, 1)
-        layout.addWidget(tip)
         return panel
 
-    def _build_menubar(self) -> None:
-        menu = self.menuBar().addMenu("帮助")
-        action_readme = QAction("打开项目目录", self)
-        action_readme.triggered.connect(self._open_project_root)
-        menu.addAction(action_readme)
+    def _init_tooltips(self) -> None:
+        self.mode_combo.setToolTip("选择处理类型：图片超分或视频超分。")
+        self.input_edit.setToolTip("图片模式支持单图或文件夹；视频模式支持单个视频文件。")
+        self.output_edit.setToolTip("超分结果保存目录。")
+        self.model_combo.setToolTip("选择模型类型，决定超分风格和速度。")
+        self.model_path_edit.setToolTip("可填模型文件或模型目录，留空则自动使用默认目录。")
+        self.detected_model_combo.setToolTip("自动识别到的本地模型，可直接选择并应用。")
+        self.detect_btn.setToolTip("重新扫描模型目录。")
+        self.download_btn.setToolTip("下载当前模型到本地。")
+        self.outscale_spin.setToolTip("最终放大倍数，常用 2 或 4。")
+        self.denoise_spin.setToolTip("仅对 realesr-general-x4v3 生效，值越大降噪越强。")
+        self.gpu_combo.setToolTip("指定 GPU 编号；自动时由程序选择。")
+        self.face_checkbox.setToolTip("对人脸区域进行修复，适合人像。")
+        self.fp32_checkbox.setToolTip("提高兼容性但会增加显存占用和耗时。")
+        self.suffix_edit.setToolTip("输出文件名后缀，例如 out。")
+        self.ext_combo.setToolTip("图片输出格式。auto 表示跟随原图格式。")
+        self.alpha_combo.setToolTip("透明通道处理方式。")
+        self.tile_spin.setToolTip("分块超分，显存不足时调大/调小可避免爆显存。0 为不分块。")
+        self.tile_pad_spin.setToolTip("分块边缘填充，减少接缝。")
+        self.pre_pad_spin.setToolTip("输入边界预填充，通常保持 0。")
+        self.fps_spin.setToolTip("视频输出帧率，0 为跟随原视频。")
+        self.ffmpeg_edit.setToolTip("ffmpeg 可执行文件路径，用于音轨合并。")
+        self.start_btn.setToolTip("开始执行超分任务。")
+        self.stop_btn.setToolTip("停止当前任务。")
+        self.reset_btn.setToolTip("将参数恢复为默认值。")
+        self.progress_bar.setToolTip("任务进度。")
+        self.log_edit.setToolTip("运行日志与错误信息。")
 
     def _apply_stylesheet(self) -> None:
         self.setFont(QFont("Microsoft YaHei UI", 10))
         self.setStyleSheet(
             """
             QMainWindow {
-                background: #ecf2f8;
-            }
-            QFrame#headerCard {
-                border-radius: 16px;
                 background: qlineargradient(
                     x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #12324a,
-                    stop: 1 #1f5f7a
+                    stop: 0 #eef4f9,
+                    stop: 1 #e8f1f8
+                );
+            }
+            QFrame#headerCard {
+                border-radius: 14px;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #0f3148,
+                    stop: 1 #1d6a87
                 );
             }
             QLabel#titleLabel {
                 color: #ffffff;
-                font-size: 24px;
+                font-size: 22px;
                 font-weight: 700;
-            }
-            QLabel#subTitleLabel {
-                color: #d7eaf5;
-                font-size: 13px;
             }
             QFrame#card {
                 background: #fdfefe;
-                border: 1px solid #d8e5ef;
-                border-radius: 14px;
+                border: 1px solid #d5e3ee;
+                border-radius: 12px;
             }
             QLabel#statusLabel {
                 font-size: 15px;
@@ -487,6 +543,18 @@ class MainWindow(QMainWindow):
             QPushButton:disabled {
                 background: #9bb9cb;
             }
+            QPushButton#primaryBtn {
+                background: #1f8f68;
+            }
+            QPushButton#primaryBtn:hover {
+                background: #187250;
+            }
+            QPushButton#secondaryBtn {
+                background: #5c7f95;
+            }
+            QPushButton#secondaryBtn:hover {
+                background: #4c6a7d;
+            }
             QProgressBar {
                 border: 1px solid #c7d8e7;
                 border-radius: 7px;
@@ -502,6 +570,10 @@ class MainWindow(QMainWindow):
                     stop: 0 #2f789f,
                     stop: 1 #4da5c8
                 );
+            }
+            QSplitter::handle {
+                background: #d5e3ee;
+                border-radius: 3px;
             }
             """
         )
@@ -546,6 +618,13 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.model_path_edit.setText(path)
+            self._auto_detect_models()
+
+    def _browse_model_dir(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "选择模型目录", self.model_path_edit.text() or str(project_root()))
+        if folder:
+            self.model_path_edit.setText(folder)
+            self._auto_detect_models()
 
     def _browse_ffmpeg(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -564,9 +643,6 @@ class MainWindow(QMainWindow):
             path.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve())))
 
-    def _open_project_root(self) -> None:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(project_root().resolve())))
-
     def _current_mode_value(self) -> str:
         return self.MODE_LABELS[self.mode_combo.currentText()]
 
@@ -575,16 +651,95 @@ class MainWindow(QMainWindow):
         self.video_group.setEnabled(is_video)
         self.ext_combo.setEnabled(not is_video)
 
+    def _candidate_model_dirs(self) -> list[Path]:
+        candidates: list[Path] = []
+        manual = self.model_path_edit.text().strip()
+        if manual:
+            p = Path(manual)
+            if p.is_dir():
+                candidates.append(p)
+            elif p.is_file() and p.suffix.lower() == ".pth":
+                candidates.append(p.parent)
+        candidates.append(project_root() / "weights")
+        candidates.append(project_root() / "third_party" / "Real-ESRGAN-0.3.0" / "weights")
+
+        uniq: list[Path] = []
+        seen: set[str] = set()
+        for d in candidates:
+            key = str(d.resolve()) if d.exists() else str(d)
+            if key in seen:
+                continue
+            seen.add(key)
+            if d.exists() and d.is_dir():
+                uniq.append(d)
+        return uniq
+
+    def _auto_detect_models(self) -> None:
+        found: dict[str, str] = {}
+        for model_name in self.MODELS:
+            for folder in self._candidate_model_dirs():
+                candidate = folder / f"{model_name}.pth"
+                if candidate.is_file():
+                    found[model_name] = str(candidate.resolve())
+                    break
+        self.detected_model_paths = found
+        self._refresh_detected_model_combo()
+
+    def _refresh_detected_model_combo(self) -> None:
+        previous_path = self.detected_model_combo.currentData(Qt.UserRole)
+        self.detected_model_combo.blockSignals(True)
+        self.detected_model_combo.clear()
+        self.detected_model_combo.addItem("自动匹配（按模型名）", None)
+        self.detected_model_combo.setItemData(0, "", Qt.UserRole)
+        self.detected_model_combo.setItemData(0, "", Qt.UserRole + 1)
+
+        index_to_select = 0
+        for model_name in self.MODELS:
+            path = self.detected_model_paths.get(model_name)
+            if not path:
+                continue
+            label = f"{model_name} ({Path(path).parent.name})"
+            self.detected_model_combo.addItem(label)
+            idx = self.detected_model_combo.count() - 1
+            self.detected_model_combo.setItemData(idx, path, Qt.UserRole)
+            self.detected_model_combo.setItemData(idx, model_name, Qt.UserRole + 1)
+            self.detected_model_combo.setItemData(idx, path, Qt.ToolTipRole)
+            if previous_path and previous_path == path:
+                index_to_select = idx
+
+        self.detected_model_combo.setCurrentIndex(index_to_select)
+        self.detected_model_combo.setEnabled(self.detected_model_combo.count() > 1)
+        if self.detected_model_combo.count() > 1:
+            self.detected_model_combo.setToolTip("已识别本地模型，选择后会自动填入路径。")
+        else:
+            self.detected_model_combo.setToolTip("未识别到本地模型，请选择目录后点击“识别”。")
+        self.detected_model_combo.blockSignals(False)
+
+    def _on_detected_model_selected(self, *_args) -> None:
+        path = self.detected_model_combo.currentData(Qt.UserRole)
+        model_name = self.detected_model_combo.currentData(Qt.UserRole + 1)
+        if path:
+            self.model_path_edit.setText(str(path))
+        if model_name and model_name in self.MODELS:
+            self.model_combo.setCurrentText(model_name)
+
+    def _resolved_model_path_for_ui(self, model_name: str) -> str:
+        manual = self.model_path_edit.text().strip()
+        if manual:
+            return manual
+        return self.detected_model_paths.get(model_name, "")
+
     def _collect_config(self) -> InferenceConfig:
         gpu_text = self.gpu_combo.currentText()
         gpu_id = None if gpu_text == "自动" else int(gpu_text)
         fps = self.fps_spin.value()
+        model_name = self.model_combo.currentText()
         return InferenceConfig(
             mode=self._current_mode_value(),
             input_path=self.input_edit.text().strip(),
             output_dir=self.output_edit.text().strip(),
-            model_name=self.model_combo.currentText(),
-            model_path=self.model_path_edit.text().strip(),
+            model_name=model_name,
+            model_path=self._resolved_model_path_for_ui(model_name),
             outscale=self.outscale_spin.value(),
             denoise_strength=self.denoise_spin.value(),
             suffix=self.suffix_edit.text().strip(),
@@ -617,7 +772,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "参数检查", error)
             return
         self._save_settings()
-        self._append_log("开始任务...")
+        self._append_log("开始超分任务...")
         self.status_label.setText("运行中")
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
@@ -679,7 +834,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "提示", "模型下载任务已在运行。")
             return
         model_name = self.model_combo.currentText()
-        model_path = self.model_path_edit.text().strip()
+        model_path = self._resolved_model_path_for_ui(model_name)
         self.download_btn.setEnabled(False)
         self._append_log(f"开始准备模型：{model_name}")
         self.download_thread = QThread(self)
@@ -694,6 +849,7 @@ class MainWindow(QMainWindow):
 
     def _on_model_download_finished(self, success: bool, message: str) -> None:
         self._append_log(message)
+        self._auto_detect_models()
         if success:
             QMessageBox.information(self, "模型", message)
             return
@@ -709,7 +865,7 @@ class MainWindow(QMainWindow):
         self.download_btn.setEnabled(True)
 
     def _reset_defaults(self) -> None:
-        self.mode_combo.setCurrentText("图片增强")
+        self.mode_combo.setCurrentText("图片超分")
         self.input_edit.clear()
         self.output_edit.setText(str(project_root() / "outputs"))
         self.model_combo.setCurrentText("RealESRGAN_x4plus")
@@ -728,13 +884,14 @@ class MainWindow(QMainWindow):
         self.fps_spin.setValue(0)
         self.ffmpeg_edit.setText("ffmpeg")
         self._update_mode_ui()
+        self._auto_detect_models()
         self._append_log("参数已恢复默认。")
 
     def _load_settings(self) -> None:
         default_output = str(project_root() / "outputs")
         self.output_edit.setText(default_output)
         mode = self.settings.value("mode", "image")
-        self.mode_combo.setCurrentText(self.MODE_VALUES.get(mode, "图片增强"))
+        self.mode_combo.setCurrentText(self.MODE_VALUES.get(mode, "图片超分"))
         self.input_edit.setText(self.settings.value("input_path", ""))
         self.output_edit.setText(self.settings.value("output_dir", default_output))
         self.model_combo.setCurrentText(self.settings.value("model_name", "RealESRGAN_x4plus"))
