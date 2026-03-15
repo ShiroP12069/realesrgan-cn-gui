@@ -1,16 +1,28 @@
-# Real-ESRGAN 中文 GUI（可打包 EXE）
+# Real-ESRGAN 超分工具（中文 GUI，可打包 EXE）
 
 这是一个基于 `Real-ESRGAN` 源码封装的中文桌面 GUI 项目，目标是：
 
-- 功能完整：支持图片增强、视频增强、模型下载、日志、进度、任务停止
+- 功能完整：支持图片超分、视频超分、模型下载、日志、进度、任务停止
 - 使用方便：可拖拽输入、参数可视化、配置自动记忆
 - 易于发布：内置 `PyInstaller` 打包脚本，可直接生成 `exe`
+
+## 参考仓库（上游）
+
+- 上游项目：`xinntao/Real-ESRGAN`
+- 仓库地址：https://github.com/xinntao/Real-ESRGAN
+- 本项目引用版本：`Real-ESRGAN-0.3.0`（位于 `third_party/Real-ESRGAN-0.3.0/`）
+
+## 与上游关系说明
+
+- 本仓库不是上游官方仓库，而是基于上游源码做的中文 GUI 封装与工程化发布。
+- 核心超分模型与推理能力来自上游项目。
+- 本仓库主要新增：桌面 GUI、参数可视化、模型自动识别与选择、独立模型下载、Windows EXE 打包脚本。
 
 ## 功能亮点
 
 - 中文界面，参数命名与 Real-ESRGAN 官方参数一致
-- 支持图片文件/文件夹批量增强
-- 支持视频增强（可尝试自动合并原音轨）
+- 支持图片文件/文件夹批量超分
+- 支持视频超分（可尝试自动合并原音轨）
 - 模型权重自动下载，支持手动指定 `.pth`
 - 支持 GPU ID、Tile、Denoise、FP32、人脸增强等选项
 - 支持一键恢复默认参数
@@ -98,10 +110,10 @@ dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 
 ## 使用说明
 
-1. 选择“图片增强”或“视频增强”
+1. 选择“图片超分”或“视频超分”
 2. 设置输入路径和输出目录
 3. 选择模型与参数（首次可先点“下载模型”）
-4. 点击“开始增强”
+4. 点击“开始超分”
 5. 在右侧查看日志和进度
 
 ## 注意事项
@@ -115,3 +127,4 @@ dist/RealESRGAN_CN_GUI/RealESRGAN_CN_GUI.exe
 
 - GUI 封装代码：遵循本仓库许可证（可按需补充）
 - Real-ESRGAN 源码：见 [`third_party/Real-ESRGAN-0.3.0/LICENSE`](third_party/Real-ESRGAN-0.3.0/LICENSE)
+- 第三方说明：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
